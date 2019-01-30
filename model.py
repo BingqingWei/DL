@@ -30,9 +30,9 @@ class FullyConnected(Layer):
     def backward(self, dy):
         if self.x is None:
             raise ValueError('forward not called before backward')
-        self.grads[self.W] = np.matmul(dy, self.x)
-        self.grads[self.bias] = dy
-        return self.grads[self.W]
+        self.grads['W'] = np.matmul(dy, self.W.transpose())
+        self.grads['bias'] = dy
+        return self.grads['W']
 
     def forward(self, x):
         self.x = x
@@ -68,9 +68,9 @@ class Relu(Layer):
         return self.sign
 
     def forward(self, x):
-        self.sign = np.apply_along_axis(lambda x: 1 if x >= 0 else 0, 1, x)
-        self.sign.reshape((x.shape[0], 1))
-        return np.apply_along_axis(lambda z: z if z >= 0 else 0, 1, x)
+        self.sign = np.sign(x)
+        x[x < 0] = 0
+        return x
 
     def get_output_shape(self):
         return self.input_shape
@@ -129,15 +129,16 @@ class CrossEntropyWithSoftmax(Layer):
         return dy * (self.sft - self.y)
 
     def forward(self, x):
-        shift = x - np.max(x, axis=1)
+        shift = np.apply_along_axis(lambda z: z - np.max(x, axis=1), 0, x)
         exps = np.exp(shift)
-        self.sft = exps / np.sum(exps, axis=1)
+        self.sft = np.apply_along_axis(lambda z: z / np.sum(z), 1, exps)
+        return self.sft
 
     def loss(self, y):
         if self.sft is None:
             raise ValueError('forward not called before computing loss')
         self.y = y
-        return -np.sum(y * np.log(self.sft)) / x.shape[1]
+        return -np.sum(y * np.log(self.sft)) / y.shape[0]
 
     def get_output_shape(self):
         return self.input_shape[0], 1
@@ -163,7 +164,8 @@ class Model:
         for layer in self.layers:
             for w in layer.grads.keys():
                 update = learnin_rate * np.average(layer.grads[w], axis=0)
-                w -= update
+                x = getattr(layer, w)
+                x -= update
 
     def eval(self, result, y):
         corr = np.sum(np.argmax(result, axis=1) == np.argmax(y, axis=1))
@@ -191,7 +193,7 @@ if __name__ == '__main__':
     a1_layer = Relu(d1_layer)
     d2_layer = FullyConnected(a1_layer, 1024)
     a2_layer = Relu(d2_layer)
-    d3_layer = FullyConnected(a2_layer, 128)
+    d3_layer = FullyConnected(a2_layer, 10)
     a3_layer = CrossEntropyWithSoftmax(d3_layer)
     model = Model([input_layer, d1_layer, a1_layer,
                    d2_layer, a2_layer, d3_layer, a3_layer],
