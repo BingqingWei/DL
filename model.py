@@ -30,8 +30,9 @@ class FullyConnected(Layer):
     def backward(self, dy):
         if self.x is None:
             raise ValueError('forward not called before backward')
-        self.grads['W'] = np.matmul(dy, self.W.transpose())
-        self.grads['bias'] = dy
+        self.grads['W'] = np.transpose(np.matmul(np.expand_dims(dy, 1),
+                                                 np.expand_dims(np.average(self.x, axis=0), 0)))
+        self.grads['bias'] = np.transpose(dy)
         return self.grads['W']
 
     def forward(self, x):
@@ -65,7 +66,7 @@ class Relu(Layer):
     def backward(self, dy):
         if self.sign is None:
             raise ValueError('forward not called before backward')
-        return self.sign
+        return np.average(self.sign, axis=0)
 
     def forward(self, x):
         self.sign = np.sign(x)
@@ -126,7 +127,7 @@ class CrossEntropyWithSoftmax(Layer):
     def backward(self, dy):
         if self.sft is None or self.y is None:
             raise ValueError('forward not called before backward')
-        return dy * (self.sft - self.y)
+        return np.average(dy * (self.sft - self.y), axis=0)
 
     def forward(self, x):
         shift = np.apply_along_axis(lambda z: z - np.max(x, axis=1), 0, x)
@@ -163,7 +164,7 @@ class Model:
         self.backward()
         for layer in self.layers:
             for w in layer.grads.keys():
-                update = learnin_rate * np.average(layer.grads[w], axis=0)
+                update = learnin_rate * layer.grads[w]
                 x = getattr(layer, w)
                 x -= update
 
@@ -179,7 +180,8 @@ class Model:
                 r, loss = self.forward(x, y)
                 self.optimize()
                 cr = self.eval(r, y)
-                print('Epoch {}: {}'.format(e, cr))
+                if count % 100 == 1:
+                    print('Epoch {} counts {}: {}'.format(e, count, cumulative_cr/count))
                 count += 1
                 cumulative_cr += cr
             print('#' * 30)
@@ -189,9 +191,9 @@ class Model:
 if __name__ == '__main__':
     dataset = C10Dataset(batchsize=8)
     input_layer = Input((8, 3072))
-    d1_layer = FullyConnected(input_layer, 4096)
+    d1_layer = FullyConnected(input_layer, 1024)
     a1_layer = Relu(d1_layer)
-    d2_layer = FullyConnected(a1_layer, 1024)
+    d2_layer = FullyConnected(a1_layer, 256)
     a2_layer = Relu(d2_layer)
     d3_layer = FullyConnected(a2_layer, 10)
     a3_layer = CrossEntropyWithSoftmax(d3_layer)
