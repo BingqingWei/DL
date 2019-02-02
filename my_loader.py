@@ -17,7 +17,8 @@ def get_c10():
 
 def get_mnist():
     transform = torchvision.transforms.Compose(
-        [torchvision.transforms.ToTensor()]
+        [torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize((0.1307,), (0.3081,))]
          #torchvision.transforms.Normalize((0.5, 0.5), (0.5, 0.5))]
     )
 
@@ -50,7 +51,6 @@ class MyDataset(Dataset):
 
     def __transform_x__(self, img):
         img = img.numpy()
-        img /= 255
         return np.reshape(img, np.prod(img.shape))
 
     def __transform_y__(self, y):

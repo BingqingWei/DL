@@ -208,13 +208,13 @@ class Model:
 
 
 if __name__ == '__main__':
-    trainset, testset = get_mnist()
+    trainset, testset = get_c10()
     dataset = MyDataset(batchsize=32, trainset=trainset, testset=testset)
     dataset.set_mode('train')
-    input_layer = Input((32, 784))
-    d1_layer = FullyConnected(input_layer, 128)
+    input_layer = Input((32, 3072))
+    d1_layer = FullyConnected(input_layer, 256)
     a1_layer = Relu(d1_layer)
-    d2_layer = FullyConnected(a1_layer, 32)
+    d2_layer = FullyConnected(a1_layer, 128)
     a2_layer = Relu(d2_layer)
     d4_layer = FullyConnected(a2_layer, 10)
     a4_layer = CrossEntropyWithSoftmax(d4_layer)
