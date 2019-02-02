@@ -35,9 +35,9 @@ class FullyConnected(Layer):
     def backward(self, dy):
         if self.x is None:
             raise ValueError('forward not called before backward')
-        self.grads['W'] = np.matmul(np.transpose(self.x), dy)
-        self.grads['bias'] = np.sum(np.transpose(dy), axis=1)
-        return self.grads['W']
+        self.grads['W'] = np.matmul(np.transpose(self.x), dy) / dy.shape[0]
+        self.grads['bias'] = np.average(dy, 0)
+        return np.matmul(dy, np.transpose(self.W))
 
     def forward(self, x):
         self.x = x
@@ -66,7 +66,7 @@ class Relu(Layer):
         super(Relu, self).__init__(prev, input_shape)
 
     def backward(self, dy):
-        return np.matmul(np.ones((self.input_shape[0], dy.shape[-1])), np.transpose(dy))
+        return dy
 
     def forward(self, x):
         x[x < 0] = 0
@@ -119,11 +119,10 @@ class Model:
         for i in range(len(self.layers) - 1, -1, -1):
             dy = self.layers[i].backward(dy)
 
-    def optimize(self, learnin_rate=0.1):
+    def optimize(self, learnin_rate=0.01):
         self.backward()
         for layer in reversed(self.layers):
             for w in layer.grads.keys():
-                #TODO normalize by the batch size or not
                 update = learnin_rate * layer.grads[w]
                 x = getattr(layer, w)
                 x -= update
@@ -136,33 +135,43 @@ class Model:
         return corr / result.shape[0]
 
     def train(self, epoch=100):
+        print('Dataset size {} batches'.format(len(self.dataset)))
+        from collections import Counter
+        counter = Counter()
         for e in range(epoch):
-            count = 0
-            cumulative_cr = 0
+            counter['cr'] = 0
+            counter['loss'] = 0
+            counter['count'] = 0
             for x, y in self.dataset:
                 r, loss = self.forward(x, y)
                 self.optimize()
                 cr = self.eval(r, y)
-                if count % 100 == 1:
-                    print('Epoch {} counts {}: {}'.format(e, count, cumulative_cr/count))
-                count += 1
-                cumulative_cr += cr
+                if counter['count'] % 100 == 1:
+                    print('Epoch {} counts {}: CR-{}, Loss-{}'.format(e, counter['count'],
+                                                                      counter['cr']/counter['count'],
+                                                                      counter['loss']/counter['count']))
+                counter['count'] += 1
+                counter['cr'] += cr
+                counter['loss'] += loss
             print('#' * 30)
-            print('Epoch {} cumulative correct rate: {}'.format(e, cumulative_cr / count))
+            print('Epoch {} counts {}: CR-{}, Loss-{}'.format(e, counter['count'],
+                                                              counter['cr']/counter['count'],
+                                                              counter['loss']/counter['count']))
 
 
 if __name__ == '__main__':
-    # TODO vanishing gradients
     trainset, testset = get_mnist()
     dataset = MyDataset(batchsize=4, trainset=trainset, testset=testset)
     dataset.set_mode('train')
     input_layer = Input((4, 784))
     d1_layer = FullyConnected(input_layer, 1024)
     a1_layer = Relu(d1_layer)
-    d2_layer = FullyConnected(a1_layer, 10)
-    a4_layer = CrossEntropyWithSoftmax(d2_layer)
-    model = Model([input_layer, d1_layer, a1_layer,
-                   d2_layer, a4_layer],
+    d2_layer = FullyConnected(a1_layer, 1024)
+    a2_layer = Relu(d2_layer)
+    d3_layer = FullyConnected(a2_layer, 10)
+    a4_layer = CrossEntropyWithSoftmax(d3_layer)
+    model = Model([input_layer, d1_layer, a1_layer, d2_layer, a2_layer,
+                   d3_layer, a4_layer],
                   dataset)
     model.train()
 
