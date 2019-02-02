@@ -1,6 +1,11 @@
 __author__ = 'Bingqing Wei'
 import numpy as np
-from loader import C10Dataset
+from my_loader import *
+import torch
+
+def init_weight(shape):
+    norm = np.sqrt(2.0 / (np.sum(shape)))
+    return np.random.randn(shape[0], shape[1]) * norm
 
 class Layer:
     def __init__(self, prev, input_shape):
@@ -23,22 +28,20 @@ class FullyConnected(Layer):
         assert isinstance(prev, Layer)
         input_shape = prev.get_output_shape()
         super(FullyConnected, self).__init__(prev, input_shape)
-        self.W = np.random.rand(input_shape[-1], hidden_nb)
-        self.bias = np.random.rand(hidden_nb)
+        self.W = init_weight((input_shape[-1], hidden_nb))
+        self.bias = np.zeros(hidden_nb) + 0.01
         self.x = None
 
     def backward(self, dy):
         if self.x is None:
             raise ValueError('forward not called before backward')
-        self.grads['W'] = np.transpose(np.matmul(np.expand_dims(dy, 1),
-                                                 np.expand_dims(np.average(self.x, axis=0), 0)))
-        self.grads['bias'] = np.transpose(dy)
+        self.grads['W'] = np.matmul(np.transpose(self.x), dy)
+        self.grads['bias'] = np.sum(np.transpose(dy), axis=1)
         return self.grads['W']
 
     def forward(self, x):
         self.x = x
-        out = self.prev.forward(x)
-        return np.matmul(out, self.W) + self.bias
+        return np.matmul(x, self.W) + self.bias
 
     def get_output_shape(self):
         return self.input_shape[0], self.W.shape[-1]
@@ -61,57 +64,13 @@ class Relu(Layer):
         assert isinstance(prev, Layer)
         input_shape = prev.get_output_shape()
         super(Relu, self).__init__(prev, input_shape)
-        self.sign = None
 
     def backward(self, dy):
-        if self.sign is None:
-            raise ValueError('forward not called before backward')
-        return np.average(self.sign, axis=0)
+        return np.matmul(np.ones((self.input_shape[0], dy.shape[-1])), np.transpose(dy))
 
     def forward(self, x):
-        self.sign = np.sign(x)
         x[x < 0] = 0
         return x
-
-    def get_output_shape(self):
-        return self.input_shape
-
-class CrossEntropy(Layer):
-    def __init__(self, prev):
-        assert isinstance(prev, Layer)
-        input_shape = prev.get_output_shape()
-        super(CrossEntropy, self).__init__(prev, input_shape)
-        self.x = None
-        self.y = None
-
-    def backward(self, dy):
-        if self.y is None or self.x is None:
-            raise ValueError('forward not called before backward')
-        # should be - ti / yi but dont know how to deal with divide by 0
-
-    def forward(self, x, y):
-        self.x = x
-        self.y = y
-        return -np.sum(y * np.log(x)) / x.shape[1]
-
-    def get_output_shape(self):
-        return self.input_shape[0], 1
-
-class Softmax(Layer):
-    def __init__(self, prev):
-        assert isinstance(prev, Layer)
-        input_shape = prev.get_output_shape()
-        super(Softmax, self).__init__(prev, input_shape)
-        self.x = None
-
-    def backward(self, dy):
-        #TODO don't know how to write it
-        pass
-
-    def forward(self, x):
-        shift = x - np.max(x, axis=1)
-        exps = np.exp(shift)
-        return exps / np.sum(exps, axis=1)
 
     def get_output_shape(self):
         return self.input_shape
@@ -127,10 +86,10 @@ class CrossEntropyWithSoftmax(Layer):
     def backward(self, dy):
         if self.sft is None or self.y is None:
             raise ValueError('forward not called before backward')
-        return np.average(dy * (self.sft - self.y), axis=0)
+        return dy * (self.sft - self.y)
 
     def forward(self, x):
-        shift = np.apply_along_axis(lambda z: z - np.max(x, axis=1), 0, x)
+        shift = x - np.expand_dims(np.max(x, axis=1), axis=1)
         exps = np.exp(shift)
         self.sft = np.apply_along_axis(lambda z: z / np.sum(z), 1, exps)
         return self.sft
@@ -160,16 +119,20 @@ class Model:
         for i in range(len(self.layers) - 1, -1, -1):
             dy = self.layers[i].backward(dy)
 
-    def optimize(self, learnin_rate=0.01):
+    def optimize(self, learnin_rate=0.1):
         self.backward()
-        for layer in self.layers:
+        for layer in reversed(self.layers):
             for w in layer.grads.keys():
+                #TODO normalize by the batch size or not
                 update = learnin_rate * layer.grads[w]
                 x = getattr(layer, w)
                 x -= update
 
     def eval(self, result, y):
-        corr = np.sum(np.argmax(result, axis=1) == np.argmax(y, axis=1))
+        x1 = np.argmax(result, axis=1)
+        x2 = np.argmax(y, axis=1)
+        corr = np.sum(x1 == x2)
+        #corr = np.sum(np.argmax(result, axis=1) == np.argmax(y, axis=1))
         return corr / result.shape[0]
 
     def train(self, epoch=100):
@@ -189,16 +152,17 @@ class Model:
 
 
 if __name__ == '__main__':
-    dataset = C10Dataset(batchsize=8)
-    input_layer = Input((8, 3072))
+    # TODO vanishing gradients
+    trainset, testset = get_mnist()
+    dataset = MyDataset(batchsize=4, trainset=trainset, testset=testset)
+    dataset.set_mode('train')
+    input_layer = Input((4, 784))
     d1_layer = FullyConnected(input_layer, 1024)
     a1_layer = Relu(d1_layer)
-    d2_layer = FullyConnected(a1_layer, 256)
-    a2_layer = Relu(d2_layer)
-    d3_layer = FullyConnected(a2_layer, 10)
-    a3_layer = CrossEntropyWithSoftmax(d3_layer)
+    d2_layer = FullyConnected(a1_layer, 10)
+    a4_layer = CrossEntropyWithSoftmax(d2_layer)
     model = Model([input_layer, d1_layer, a1_layer,
-                   d2_layer, a2_layer, d3_layer, a3_layer],
+                   d2_layer, a4_layer],
                   dataset)
     model.train()
 

@@ -3,7 +3,7 @@ import torch, torchvision
 from torch.utils.data import Dataset
 import numpy as np
 
-def get_datasets():
+def get_c10():
     transform = torchvision.transforms.Compose(
         [torchvision.transforms.ToTensor(),
          torchvision.transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
@@ -15,9 +15,21 @@ def get_datasets():
                                            download=True, transform=transform)
     return trainset, testset
 
-class C10Dataset(Dataset):
-    def __init__(self, batchsize):
-        self.trainset, self.testset = get_datasets()
+def get_mnist():
+    transform = torchvision.transforms.Compose(
+        [torchvision.transforms.ToTensor()]
+         #torchvision.transforms.Normalize((0.5, 0.5), (0.5, 0.5))]
+    )
+
+    trainset = torchvision.datasets.MNIST(root='./data', train=True,
+                                          download=True, transform=transform)
+    testset = torchvision.datasets.MNIST(root='./data', train=True,
+                                         download=True, transform=transform)
+    return trainset, testset
+
+class MyDataset(Dataset):
+    def __init__(self, batchsize, trainset, testset):
+        self.trainset, self.testset = trainset, testset
         self.mode = 'train'
         self.batchsize = batchsize
 
@@ -38,6 +50,7 @@ class C10Dataset(Dataset):
 
     def __transform_x__(self, img):
         img = img.numpy()
+        img /= 255
         return np.reshape(img, np.prod(img.shape))
 
     def __transform_y__(self, y):
@@ -54,6 +67,3 @@ class C10Dataset(Dataset):
             batch_y.append(self.__transform_y__(y))
         return np.array(batch_x), np.array(batch_y)
 
-if __name__ == '__main__':
-    dataset = C10Dataset(batchsize=8)
-    print(len(dataset))
