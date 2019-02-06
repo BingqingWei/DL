@@ -11,7 +11,7 @@ def get_c10():
 
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                             download=True, transform=transform)
-    testset = torchvision.datasets.CIFAR10(root='./data', train=True,
+    testset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                            download=True, transform=transform)
     return trainset, testset
 
@@ -24,7 +24,7 @@ def get_mnist():
 
     trainset = torchvision.datasets.MNIST(root='./data', train=True,
                                           download=True, transform=transform)
-    testset = torchvision.datasets.MNIST(root='./data', train=True,
+    testset = torchvision.datasets.MNIST(root='./data', train=False,
                                          download=True, transform=transform)
     return trainset, testset
 
