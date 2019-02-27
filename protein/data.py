@@ -21,6 +21,11 @@ The batch size will always be 1.
 """
 
 class DataLoader:
+    """
+    X: amino_acids, secondary_structure, msa_features
+    Y: distance_matrix, torsion_angles
+    """
+
     def __init__(self, data_dir, mode, ngrams=1, load_dir=None):
         assert mode in ['test', 'train']
         self.data_dir = data_dir
@@ -98,12 +103,20 @@ class DataLoader:
         :param torsion_phi: (n,)
         :return: distance_matrix(vector): (n * (n - 1) / 2,), torsion_psi: (n,), torsion_phi: (n,)
         """
-        distance_matrix = np.concatenate([distance_matrix[i][i + 1:] for i in range(distance_matrix.shape[0] - 1)])
+        #distance_matrix = np.concatenate([distance_matrix[i][i + 1:] for i in range(distance_matrix.shape[0] - 1)])
+        distance_matrix = np.asarray(distance_matrix)
         torsion_psi = np.asarray(torsion_psi) / 360.0
         torsion_phi = np.asarray(torsion_phi) / 360.0
-        return distance_matrix, torsion_psi, torsion_phi
+        return distance_matrix, np.transpose(np.stack([torsion_psi, torsion_phi], axis=0))
 
-    def reverse_Y(self, p_matrix, p_psi, p_phi):
+    @staticmethod
+    def reverse_Y_concat(p_matrix, p_torsion):
+        p_psi = p_torsion[:][0]
+        p_phi = p_torsion[:][1]
+        return DataLoader.reverse_Y(p_matrix, p_psi, p_phi)
+
+    @staticmethod
+    def reverse_Y(p_matrix, p_psi, p_phi):
         # reverse the predicted distance_matrix, torsion_psi, torsion_phi
         matrix = np.zeros(shape=(p_psi.shape[0], p_psi.shape[0]))
         count = 0
@@ -113,17 +126,18 @@ class DataLoader:
                 matrix[j][i] = p_matrix[count]
                 count += 1
 
-        p_psi *= 360
-        p_phi *= 360
+        p_psi *= 360.0
+        p_phi *= 360.0
         return p_matrix, p_psi, p_phi
 
-def save_data(mode='train', ngrams=1):
+def save_data(mode='train', ngrams=1, work_dir=os.path.join('.', 'data')):
     loader = DataLoader(data_dir=os.path.join('.', 'data'), mode=mode, ngrams=ngrams)
-    loader.saveTo(os.path.join('.', 'data'))
+    loader.saveTo(work_dir)
 
-def load_loader(mode='train'):
-    loader = DataLoader(data_dir=None, mode=mode, load_dir=os.path.join('.', 'data'))
+def load_loader(mode='train', work_dir=os.path.join('.', 'data')):
+    loader = DataLoader(data_dir=None, mode=mode, load_dir=work_dir)
     return loader
 
 if __name__ == '__main__':
-    load_loader()
+    save_data()
+    #loader = load_loader()

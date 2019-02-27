@@ -3,7 +3,7 @@ import pickle
 import os
 
 def checkMSA():
-    with open(os.path.join('.', 'data', 'test.pkl'), 'rb') as f:
+    with open(os.path.join('..', 'data', 'test.pkl'), 'rb') as f:
         data = pickle.load(f)
     msa = data[-1]
     pass
@@ -13,7 +13,7 @@ def checkAminoAcids():
     out = []
 
     for i in range(1, 11):
-        with open(os.path.join('.', 'data', 'train_fold_{}.pkl'.format(i)), 'rb') as f:
+        with open(os.path.join('..', 'data', 'train_fold_{}.pkl'.format(i)), 'rb') as f:
             data = pickle.load(f)
 
         for j in range(len(data[3])):
@@ -21,7 +21,7 @@ def checkAminoAcids():
             acids.update(s)
             out.append(len(s))
 
-    with open(os.path.join('.', 'data', 'test.pkl'), 'rb') as f:
+    with open(os.path.join('..', 'data', 'test.pkl'), 'rb') as f:
         data = pickle.load(f)
         for j in range(len(data[3])):
             s = set(data[3][j])
