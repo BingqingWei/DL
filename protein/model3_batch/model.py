@@ -77,7 +77,8 @@ class ProteinModel:
         loss_drmsd = drmsd_dist_matrix(dm_pred, target_distance, seq_len_tensor, mask_dist_tensor)
 
         train_loss = tf.reduce_mean(loss_drmsd) #+ 1.0 / 50 * (loss_phi + loss_psi)
-        eval_loss = tf.sqrt(tf.losses.mean_squared_error(labels=target_distance, predictions=dm_pred))
+        eval_loss = tf.sqrt(tf.reduce_mean(
+            tf.reduce_sum(tf.reduce_sum(tf.square(dm_pred - target_distance), axis=-1), axis=-1) / tf.square(seq_len_tensor)))
 
 
         #eval_loss += 0.02 * tf.sqrt(tf.losses.mean_squared_error(labels=target_torsion_phi, predictions=ta_pred[:, :, 0]))

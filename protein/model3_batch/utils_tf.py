@@ -7,6 +7,7 @@ import keras
 import pandas as pd
 import sklearn
 import os
+from model3_batch.unet import *
 
 def save_submission(dm, phi, psi, save_path):
     # load protein names

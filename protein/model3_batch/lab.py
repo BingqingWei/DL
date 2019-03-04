@@ -1,6 +1,16 @@
 __author__ = 'Bingqing Wei'
 from model3_batch.model import *
 
+class ModelV3(ProteinModel):
+    def build_ta_pred(self, msa_tensor, amino_tensor, secondary_tensor,
+                      n_words_aa, n_words_q8):
+        amino_embed = Embedding(input_dim=n_words_aa, output_dim=128)(amino_tensor)
+        secondary_embed = Embedding(input_dim=n_words_q8, output_dim=64)(secondary_tensor)
+
+        x = Concatenate(axis=-1)([msa_tensor, secondary_embed, amino_embed])
+        return unet(x)
+
+
 class ModelV2(ProteinModel):
     def build_ta_pred(self, msa_tensor, amino_tensor, secondary_tensor,
                       n_words_aa, n_words_q8):
