@@ -43,6 +43,8 @@ class BatchDataLoader:
         self.ngrams = ngrams
         if load_dir is None:
             if mode == 'test':
+                with open(os.path.join(data_dir, self.mode + '_tokenizers.pkl'), 'rb') as f:
+                    self.tokenizer_aa, self.tokenizer_q8 = pickle.load(f)
                 self.files = [os.path.join(data_dir, 'test.pkl')]
             else:
                 self.files = [os.path.join(data_dir, 'train_fold_{}.pkl'.format(i)) for i in range(1, 11)]
@@ -50,7 +52,7 @@ class BatchDataLoader:
             self.Y = []
             self.tokenizer_aa = None
             self.tokenizer_q8 = None
-            self.load_all()
+            self.load_all(data_dir)
             self.n_words_aa = None
             self.n_words_q8 = None
             self.aa_total = int(comb(N=len(amino_acids_letters), k=ngrams))
@@ -91,7 +93,7 @@ class BatchDataLoader:
             li = [self.tokenizer_aa, self.tokenizer_q8]
             pickle.dump(li, f)
 
-    def load_all(self):
+    def load_all(self, data_dir):
         """
         :train:
         tokenizers: tokenizer_aa, tokenizer_q8,
@@ -106,8 +108,41 @@ class BatchDataLoader:
             self.tokenizer_aa, self.tokenizer_q8, self.X, self.Y = self.load_all_train()
             self.n_words_aa = len(self.tokenizer_aa.word_index) + 1
             self.n_words_q8 = len(self.tokenizer_q8.word_index) + 1
-        else: #TODO
-            raise NotImplementedError()
+        else:
+            with open(os.path.join(data_dir, 'train' + '_tokenizers.pkl'), 'rb') as f:
+                self.tokenizer_aa, self.tokenizer_q8 = pickle.load(f)
+            self.X = self.load_all_test()
+
+    def load_all_test(self):
+        data_fields = [[] for i in range(6)]
+        for fpath in self.files:
+            with open(fpath, 'rb') as f:
+                data = pickle.load(f)
+                # amino acids, secondary structure, msa features
+                for j in range(len(data_fields)):
+                    data_fields[j].append(data[j])
+        for j in range(len(data_fields)):
+            data_fields[j] = np.concatenate(data_fields[j])
+        indices, pdbs, length_seq, aa_seq, q8_seq, msas = data_fields
+        msas = [np.stack(x).transpose().astype(np.float32) for x in msas]
+
+        # processing msa
+        msa_dim = msas[0].shape[1]
+        msas_padded = np.zeros([len(msas), self.max_seq_len, msa_dim], dtype=np.float32)
+        for i in range(len(msas)):
+            msas_padded[i, :msas[i].shape[0], :] = msas[i]
+        del msas, data_fields
+
+        train_aa_grams = seq2ngrams(aa_seq, ngrams=self.ngrams)
+        train_q8_grams = seq2ngrams(q8_seq, ngrams=self.ngrams)
+
+        train_aa_grams = self.tokenizer_aa.texts_to_sequences(train_aa_grams)
+        train_aa_grams = sequence.pad_sequences(train_aa_grams, maxlen=self.max_seq_len,
+                                                  padding='post', truncating='post')
+        train_q8_grams = self.tokenizer_q8.texts_to_sequences(train_q8_grams)
+        train_q8_grams = sequence.pad_sequences(train_q8_grams, maxlen=self.max_seq_len,
+                                                padding='post', truncating='post')
+        return train_aa_grams, train_q8_grams, msas_padded, length_seq
 
     def load_all_train(self):
         data_fields = [[] for i in range(9)]
@@ -181,5 +216,5 @@ def load_loader(mode='train', work_dir=os.path.join('..', 'data'), max_size=None
     return loader
 
 if __name__ == '__main__':
-    #save_data()
-    loader = load_loader()
+    save_data(mode='test')
+    #loader = load_loader()

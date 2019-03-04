@@ -4,7 +4,40 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from keras.layers import *
 import keras
+import pandas as pd
 import sklearn
+import os
+
+def save_submission(dm, phi, psi, save_path):
+    # load protein names
+    testfile = os.path.join(save_path, 'test.csv')
+    test_input = pd.read_csv(testfile, header=None)
+    protein_names = np.array(test_input.iloc[:, 1])
+    protein_len = np.array(test_input.iloc[:, 2])
+
+    # concatenate all output to one-dimensional
+    all_data = []
+    all_names = []
+    for i, pname in enumerate(protein_names):
+        dist_flat = dm[i].ravel()
+        array = np.concatenate([dist_flat, psi[i], phi[i]])
+        all_data.append(array)
+
+        length = protein_len[i]
+        dist_names = ["{}_d_{}_{}".format(pname, i + 1, j + 1) for i in range(length) for
+                      j in range(length)]
+
+        psi_names = ["{}_psi_{}".format(pname, i + 1) for i in range(length)]
+        phi_names = ["{}_phi_{}".format(pname, i + 1) for i in range(length)]
+        row_names = np.array(dist_names + psi_names + phi_names)
+        all_names.append(row_names)
+
+    all_data = np.concatenate(all_data)
+    all_names = np.concatenate(all_names)
+    output = {"Id": all_names, "Predicted": all_data}
+    output = pd.DataFrame(output)
+    output.to_csv(os.path.join(save_path, "submission.csv"), index=False)
+
 
 from model3_batch.geom_ops import *
 class CkptSaver:
@@ -24,6 +57,9 @@ class CkptSaver:
         self.saver.save(sess=self.sess,
                         save_path=os.path.join(self.work_dir, 'model.ckpt'), global_step=epoch)
 
+    def restore(self, ckpt_fpath):
+        self.saver.restore(sess=self.sess, save_path=ckpt_fpath)
+
 class ModelSaver:
     def __init__(self, work_dir, model):
         self.model = model
@@ -39,70 +75,6 @@ class ModelSaver:
 
     def save(self, epoch):
         self.model.save(os.path.join(self.work_dir, 'model-{}.h5'.format(epoch)))
-
-# U-Net layers 
-def conv_block(x, n_channels, droprate = 0.25):
-    """ for UNet """
-    x = BatchNormalization()(x)
-    x = ReLU()(x)
-    x = Conv1D(n_channels, 3, padding = 'same', kernel_initializer = 'he_normal')(x) 
-    x = Dropout(droprate)(x)
-    x = BatchNormalization()(x)
-    x = ReLU()(x)
-    x = Conv1D(n_channels, 3, padding = 'same', kernel_initializer = 'he_normal')(x)
-    return x 
-
-def up_block(x, n_channels):
-    """ for UNet """
-    x = BatchNormalization()(x)
-    x = ReLU()(x)
-    x = UpSampling1D(size = 2)(x)
-    x = Conv1D(n_channels, 2, padding = 'same', kernel_initializer = 'he_normal')(x)
-    return x
-
-def Conv_UNet(x, droprate=0.25):
-    """ 1-D Convolutional UNet https://arxiv.org/abs/1505.04597 """
-
-    conv0 = Conv1D(192, 3, padding = 'same', kernel_initializer = 'he_normal')(x) 
-
-    conv1 = conv_block(conv0, 128, droprate)
-    pool1 = MaxPooling1D(pool_size=2)(conv1)
-
-    conv2 = conv_block(pool1, 192, droprate)
-    pool2 = MaxPooling1D(pool_size=2)(conv2)
-
-    conv3 = conv_block(pool2, 384, droprate)
-    pool3 = MaxPooling1D(pool_size=2)(conv3)
-
-    conv4 = conv_block(pool3, 512, droprate)
-
-    pool4 = MaxPooling1D(pool_size=2)(conv4)
-    conv5 = conv_block(pool4, 1024, droprate)
-    up5 = conv5
-
-    up4 = up_block(up5, 512)
-    up4 = concatenate([conv4,up4], axis = 2)
-    #TODO
-    up4 = conv_block(up4, 512, droprate)
-
-    up4 = conv4
-
-    up3 = up_block(up4, 384)
-    up3 = concatenate([conv3,up3], axis = 2)
-    up3 = conv_block(up3, 384, droprate)
-
-    up2 = up_block(up3, 192)
-    up2 = concatenate([conv2,up2], axis = 2)
-    up2 = conv_block(up2, 192, droprate)
-
-    up1 = up_block(up2, 128)
-    up1 = concatenate([conv1,up1], axis = 2)
-    up1 = conv_block(up1, 128, droprate)
-
-    up1 = BatchNormalization()(up1)
-    up1 = ReLU()(up1)
-
-    return up1
 
 def get_distance_matrix(torsion_angles):
     """ Convert torsion angles to distance matrix
