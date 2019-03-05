@@ -60,7 +60,7 @@ class ModelV1(ProteinModel):
 
 def train(model_class):
     np.set_printoptions(threshold=np.nan)
-    loader = load_loader(mode='train', max_size=3000, work_dir=os.path.join('..', 'data'))
+    loader = load_loader(mode='train', max_size=2000, work_dir=os.path.join('..', 'data'))
     model = model_class(work_dir='./data', per_process_gpu_memory_fraction=0.7,
                         n_words_aa=loader.n_words_aa, n_words_q8=loader.n_words_q8)
     model.train(X=loader.X, Y=loader.Y, test_size=0.2, batch_size=32,

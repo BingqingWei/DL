@@ -131,7 +131,7 @@ class ProteinModel:
         if steps is None: steps = int(math.floor(X[0].shape[0] / batch_size))
 
         for i in range(steps):
-            if (i + 1) * batch_size >= len(idx_shuffle): break
+            #if (i + 1) * batch_size >= len(idx_shuffle): break
             idx_batch = idx_shuffle[i * batch_size : (i+1) * batch_size]
             x_train = [data[idx_batch] for data in X]
             y_train = [data[idx_batch] for data in Y]
@@ -150,7 +150,7 @@ class ProteinModel:
 
         self.sess.run(tf.global_variables_initializer())
 
-        steps_per_epoch = int(math.floor(X[0].shape[0] / batch_size))
+        steps_per_epoch = int(math.floor(train_X[0].shape[0] / batch_size))
         for epoch in range(nb_epochs):
             sys.stdout.flush()
             avg_loss = 0.0
@@ -180,7 +180,7 @@ class ProteinModel:
         summary.value.add(tag='eval_loss', simple_value=avg_loss)
         self.summary_writer.add_summary(summary=summary, global_step=global_step)
         if verbose:
-            print('Epoch-{} Eval-Loss-{}'.format(global_step, avg_loss))
+            print('Epoch-{} Eval-Loss-{}\n'.format(global_step, avg_loss))
         return avg_loss
 
     def predict(self, X, ckpt_fpath, save_dir):
